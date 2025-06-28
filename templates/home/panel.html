@@ -1,0 +1,148 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}My Panel | Maison Veloura{% endblock %}
+
+{% block content %}
+<section class="max-w-6xl mx-auto px-6 py-16 space-y-12">
+  <h1 class="text-4xl font-bold text-darkRed hover:text-rose transition duration-300">My Panel</h1>
+
+  <div id="user-info" class="bg-white border border-blush rounded-2xl p-6 shadow hover:shadow-lg transition">
+    <h2 class="text-2xl font-semibold text-darkRed mb-4">User Information</h2>
+    <div class="text-gray-700 space-y-1">
+      <p><strong class="text-darkRed">Full Name:</strong> <span id="user-name">Loading...</span></p>
+      <p><strong class="text-darkRed">Email:</strong> <span id="user-email">Loading...</span></p>
+      <p><strong class="text-darkRed">Phone:</strong> <span id="user-phone">Loading...</span></p>
+    </div>
+  </div>
+
+  <div id="user-addresses" class="bg-white border border-blush rounded-2xl p-6 shadow hover:shadow-lg transition">
+    <h2 class="text-2xl font-semibold text-darkRed mb-4">My Addresses</h2>
+    <ul id="address-list" class="list-disc pl-5 text-gray-700 space-y-2"></ul>
+    <div class="mt-6 grid grid-cols-2 gap-4">
+      <input id="province" type="text" placeholder="Province" class="border border-blush rounded px-3 py-2" />
+      <input id="city" type="text" placeholder="City" class="border border-blush rounded px-3 py-2" />
+      <input id="street" type="text" placeholder="Street" class="border border-blush rounded px-3 py-2" />
+      <input id="postal_code" type="text" placeholder="Postal Code" class="border border-blush rounded px-3 py-2" />
+      <input id="no" type="text" placeholder="No." class="border border-blush rounded px-3 py-2" />
+      <label class="flex items-center space-x-2 col-span-2">
+        <input id="is_default" type="checkbox" class="accent-darkRed">
+        <span>Set as default</span>
+      </label>
+      <button id="add-address-btn" class="bg-darkRed hover:bg-rose text-white px-5 py-2 rounded-full transition duration-300 font-semibold col-span-2">
+        Add Address
+      </button>
+    </div>
+  </div>
+
+  <div id="order-list" class="bg-white border border-blush rounded-2xl p-6 shadow hover:shadow-lg transition">
+    <h2 class="text-2xl font-semibold text-darkRed mb-4">My Orders</h2>
+    <ul id="orders" class="divide-y divide-blush text-gray-700">
+      <li class="text-sm text-gray-500 italic">Loading orders...</li>
+    </ul>
+  </div>
+</section>
+
+<script>
+  async function authFetch(url, options = {}) {
+    const access = localStorage.getItem('access_token');
+    const refresh = localStorage.getItem('refresh_token');
+
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = `Bearer ${access}`;
+    options.headers['Content-Type'] = 'application/json';
+
+    let res = await fetch(url, options);
+
+    if (res.status === 401 && refresh) {
+      const refreshRes = await fetch("/api/token/refresh/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh })
+      });
+
+      if (refreshRes.ok) {
+        const data = await refreshRes.json();
+        localStorage.setItem("access_token", data.access);
+        options.headers["Authorization"] = `Bearer ${data.access}`;
+        return fetch(url, options);
+      } else {
+        localStorage.clear();
+        window.location.href = "/login/";
+      }
+    }
+
+    return res;
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    try {
+      const [userRes, orderRes] = await Promise.all([
+        authFetch("/api/confirm-info/"),
+        authFetch("/api/orders/")
+      ]);
+
+      const user = await userRes.json();
+      const orders = await orderRes.json();
+
+      document.getElementById("user-name").textContent = `${user.first_name} ${user.last_name}`;
+      document.getElementById("user-email").textContent = user.email || '—';
+      document.getElementById("user-phone").textContent = user.phone_number || '—';
+
+      const addrList = document.getElementById("address-list");
+      if (user.addresses?.length) {
+        addrList.innerHTML = user.addresses.map(addr => `
+          <li>
+            ${addr.province}, ${addr.city}, ${addr.street} No. ${addr.no}, ${addr.postal_code}
+            ${addr.is_default ? '<span class="ml-2 text-xs text-green-500">(Default)</span>' : ''}
+          </li>`).join("");
+      } else {
+        addrList.innerHTML = "<li class='text-gray-500 italic'>No addresses found.</li>";
+      }
+
+      const ordersEl = document.getElementById("orders");
+      ordersEl.innerHTML = orders.length
+        ? orders.map(o => `
+            <li class="py-3">
+              <div class="flex justify-between items-center">
+                <span>Order #${o.id}</span>
+                <span class="text-rose">${o.total_price} $</span>
+              </div>
+              <div class="text-sm text-gray-500">Status: ${o.status}</div>
+            </li>
+          `).join("")
+        : "<li class='text-gray-500 italic'>No orders found.</li>";
+
+      // Add address
+      document.getElementById("add-address-btn").addEventListener("click", async () => {
+        const province = document.getElementById("province").value.trim();
+        const city = document.getElementById("city").value.trim();
+        const street = document.getElementById("street").value.trim();
+        const postal_code = document.getElementById("postal_code").value.trim();
+        const no = document.getElementById("no").value.trim();
+        const is_default = document.getElementById("is_default").checked;
+
+        if (!province || !city || !street || !postal_code || !no) {
+          alert("Please fill in all address fields.");
+          return;
+        }
+
+        const res = await authFetch("/api/addresses/", {
+          method: "POST",
+          body: JSON.stringify({ province, city, street, postal_code, no, is_default })
+        });
+
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          const err = await res.json();
+          alert("Error: " + JSON.stringify(err));
+        }
+      });
+
+    } catch (err) {
+      console.error("Failed to load panel data:", err);
+      alert("Failed to load panel.");
+    }
+  });
+</script>
+{% endblock %}

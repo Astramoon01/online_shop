@@ -1,0 +1,67 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}Order Receipt | Maison Veloura{% endblock %}
+
+{% block content %}
+<section class="bg-white py-16 px-4 md:px-12">
+    <div class="max-w-4xl mx-auto p-6 bg-white shadow rounded-lg">
+        <h2 class="text-3xl font-bold mb-6 text-darkRed">🧾 Your Receipt</h2>
+        <div id="receipt-container">
+            <p class="text-gray-500">Loading receipt...</p>
+        </div>
+        <div class="mt-6 text-center">
+            <a href="/" class="text-blue-600 hover:underline">← Back to Home</a>
+        </div>
+    </div>
+</section>
+
+<script>
+    document.addEventListener("DOMContentLoaded", async function () {
+        const container = document.getElementById("receipt-container");
+
+        try {
+            const orderRes = await authFetch('/api/orders/latest/');
+            if (!orderRes.ok) throw new Error("Could not find your latest order.");
+            const latestOrder = await orderRes.json();
+
+            const receiptRes = await authFetch(`/api/receipt/${latestOrder.id}/`);
+            if (!receiptRes.ok) throw new Error("Failed to fetch receipt.");
+            const data = await receiptRes.json();
+
+            container.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-darkRed">Customer</h3>
+                        <p>${data.user.first_name} ${data.user.last_name}</p>
+                        <p>${data.user.phone_number}</p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-darkRed">Shipping Address</h3>
+                        <p>${data.address ? data.address.full_address : "N/A"}</p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-darkRed mb-2">Items</h3>
+                        <ul class="divide-y divide-gray-200">
+                            ${data.items.map(item => `
+                                <li class="py-2 flex justify-between">
+                                    <span>${item.quantity} × ${item.product_name}</span>
+                                    <span>${item.total_price} T</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    <div class="text-right mt-4 space-y-1">
+                        <p><strong>Total:</strong> ${data.total_price} T</p>
+                        <p><strong>Shipping:</strong> ${data.shipping_cost} T</p>
+                        <p><strong>Discount:</strong> -${data.discount_amount} T</p>
+                        <p class="text-xl font-bold"><strong>Final:</strong> ${data.final_price} T</p>
+                    </div>
+                </div>
+            `;
+        } catch (err) {
+            console.error(err);
+            container.innerHTML = `<p class="text-red-500">Error loading receipt.</p>`;
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}Confirm Info | Maison Veloura{% endblock %}
+
+{% block content %}
+    <section class="px-6 py-10 bg-light min-h-screen">
+        <h1 class="text-3xl font-bold text-darkRed text-center mb-10">Confirm Your Information</h1>
+
+        <div id="user-info" class="bg-white rounded-xl shadow p-6 max-w-2xl mx-auto space-y-6">
+            <div id="loading" class="text-center text-gray-500">Loading your info...</div>
+        </div>
+
+        <div class="mt-10 text-center">
+            <button id="confirm-button"
+                    class="bg-darkRed hover:bg-rose text-white px-6 py-2 rounded-full transition duration-300 hidden">
+                Confirm and Continue
+            </button>
+        </div>
+    </section>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const token = localStorage.getItem("access_token");
+            const container = document.getElementById("user-info");
+            const confirmBtn = document.getElementById("confirm-button");
+
+            if (!token) {
+                container.innerHTML = "<p class='text-red-500'>You must be logged in.</p>";
+                return;
+            }
+
+            fetch("/api/confirm-info/", {
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error("Unauthorized or failed to fetch user info");
+                    return res.json();
+                })
+                .then(data => {
+                    const {first_name, last_name, phone_number, addresses, has_address} = data;
+
+                    let html = `
+                    <div>
+                        <p class="text-lg"><strong>First Name:</strong> ${first_name || '<span class="text-red-500">Missing</span>'}</p>
+                        <p class="text-lg"><strong>Last Name:</strong> ${last_name || '<span class="text-red-500">Missing</span>'}</p>
+                    </div>
+                `;
+
+                    html += `
+                    <div class="mt-4">
+                        <p class="text-lg"><strong>Phone Number:</strong> ${phone_number || '<span class="text-red-500">Not provided</span>'}</p>
+                        ${!phone_number ? `
+                            <input type="text" id="phone-input" placeholder="e.g. 09123456789"
+                                   class="mt-2 p-2 border rounded w-full focus:outline-none focus:ring-2 focus:ring-rose-500">
+                        ` : ''}
+                    </div>
+                `;
+
+                    if (has_address && addresses.length > 0) {
+                        html += `
+                        <div class="mt-6">
+                            <p class="mb-2 font-semibold">Select a shipping address:</p>
+                            ${addresses.map(addr => `
+                                <label class="block border rounded p-3 mb-2 hover:border-darkRed transition">
+                                    <input type="radio" name="address" value="${addr.id}" class="mr-2">
+                                    ${addr.province}, ${addr.city}, ${addr.street}, No. ${addr.no}, Postal Code: ${addr.postal_code}
+                                    ${addr.is_default ? '<span class="text-sm text-green-600 ml-2">(Default)</span>' : ''}
+                                </label>
+                            `).join('')}
+                            <div class="mt-4">
+                                <a href="/add-address/" class="text-blue-600 hover:underline">Add New Address</a>
+                            </div>
+                        </div>
+                    `;
+                    } else {
+                        html += `
+                        <div class="mt-6 text-red-500">
+                            You don't have any addresses. <a href="/add-address/" class="text-blue-600 hover:underline">Click here to add one</a> before proceeding.
+                        </div>
+                    `;
+                    }
+
+                    container.innerHTML = html;
+
+                    if (has_address && addresses.length > 0) {
+                        confirmBtn.classList.remove("hidden");
+
+                        confirmBtn.addEventListener("click", () => {
+                            const phoneInput = document.getElementById("phone-input");
+                            const selectedAddress = document.querySelector("input[name='address']:checked");
+
+                            const payload = {};
+
+                            if (phoneInput) {
+                                const phone = phoneInput.value.trim();
+                                if (!/^09\d{9}$/.test(phone)) {
+                                    alert("Invalid phone number. It must start with 09 and be 11 digits.");
+                                    return;
+                                }
+                                payload.phone_number = phone;
+                            }
+
+                            if (!selectedAddress) {
+                                alert("Please select an address.");
+                                return;
+                            }
+
+                            payload.address_id = selectedAddress.value;
+
+                            fetch("/api/confirm-info/", {
+                                method: "PATCH",
+                                headers: {
+                                    "Authorization": `Bearer ${token}`,
+                                    "Content-Type": "application/json",
+                                },
+                                body: JSON.stringify(payload),
+                            })
+                                .then(res => {
+                                    if (res.ok) {
+                                        window.location.href = "/checkout/";
+                                    } else {
+                                        res.json().then(err => {
+                                            console.error(err);
+                                            alert("Failed to confirm. Please check your info.");
+                                        });
+                                    }
+                                });
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error("Fetch error:", err);
+                    container.innerHTML = "<p class='text-red-500'>Failed to load user information.</p>";
+                });
+        });
+    </script>
+
+
+{% endblock %}

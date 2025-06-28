@@ -1,0 +1,79 @@
+<!-- templates/base/base.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="font-roman">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Maison Veloura{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body class="bg-light text-black">
+
+{% include "base/header.html" %}
+
+<main class="min-h-screen">
+    {% block content %}{% endblock %}
+</main>
+
+{% include "base/footer.html" %}
+<script>
+    const token = localStorage.getItem("access_token");
+    const loginBtn = document.getElementById('login-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    if (token) {
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'inline-block';
+    } else {
+        if (loginBtn) loginBtn.style.display = 'inline-block';
+        if (logoutBtn) logoutBtn.style.display = 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', function () {
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("refresh_token");
+
+                fetch('api/logout/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include'
+                })
+                    .then(response => {
+                        if (response.ok) {
+                            window.location.href = '/';
+                        } else {
+                            alert('Logout failed.');
+                        }
+                    })
+                    .catch(() => alert('Something went wrong during logout.'));
+            });
+
+        }
+
+        // Helper to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+
+
+</body>
+</html>

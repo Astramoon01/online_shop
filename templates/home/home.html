@@ -1,0 +1,123 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}Home | Young & Beautiful{% endblock %}
+
+{% block content %}
+    <section class="flex">
+        <!-- Sidebar Categories -->
+        <aside class="w-1/5 p-4 bg-white border-r border-blush">
+            <h3 class="text-lg font-extrabold text-darkRed mb-4">Categories</h3>
+            <div id="category-list">
+                <p id="loading-text" class="text-gray-500 text-sm">Loading...</p>
+            </div>
+        </aside>
+
+        <!-- Main Banner + Quote -->
+        <div class="w-4/5 p-6">
+            <div class="flex flex-row-reverse items-center">
+                <img src="{% static 'img/monroe.jpeg' %}" alt="Marilyn Monroe"
+                     class="w-2/5 rounded-xl shadow-lg border-4 border-blush hover:scale-105 transition-all duration-500 ease-in-out">
+                <blockquote
+                        class="mr-8 text-2xl italic text-darkRed border-r-4 border-rose pr-6 max-w-md relative group transition-all duration-300 hover:text-rose">
+                <span class="block group-hover:opacity-100 opacity-60 transition-opacity duration-500">
+                    "I believe in the power of makeup, and I think it should be used to enhance the beauty that is already there."
+                </span>
+                    <span class="absolute top-0 left-[-1.5rem] text-rose text-4xl opacity-0 group-hover:opacity-100 transition duration-500">❝</span>
+                </blockquote>
+            </div>
+        </div>
+    </section>
+
+    <section class="px-8 py-12 bg-white grid grid-cols-1 md:grid-cols-3 gap-10">
+        <div class="bg-light shadow-md p-6 rounded-2xl text-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:bg-blush">
+            <img src="{% static 'img/new.jpeg' %}" alt="New Collection"
+                 class="w-full h-40 object-cover rounded-lg mb-4 transition duration-300"/>
+            <h2 class="text-xl font-extrabold text-darkRed mb-2 tracking-wide hover:text-rose transition">New
+                Collection</h2>
+            <p class="text-sm text-gray-700">Explore our latest arrivals to keep your beauty on point!</p>
+        </div>
+
+        <div class="bg-light shadow-md p-6 rounded-2xl text-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:bg-blush">
+            <img src="{% static 'img/offers.jpeg' %}" alt="Special Offers"
+                 class="w-full h-40 object-cover rounded-lg mb-4 transition duration-300"/>
+            <h2 class="text-xl font-extrabold text-darkRed mb-2 tracking-wide hover:text-rose transition">Special
+                Offers</h2>
+            <p class="text-sm text-gray-700">Save big with limited-time discounts on top-rated products.</p>
+        </div>
+
+        <div class="bg-light shadow-md p-6 rounded-2xl text-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:bg-blush">
+            <img src="{% static 'img/recommended.jpeg' %}" alt="Recommended"
+                 class="w-full h-40 object-cover rounded-lg mb-4 transition duration-300"/>
+            <h2 class="text-xl font-extrabold text-darkRed mb-2 tracking-wide hover:text-rose transition">
+                Recommended</h2>
+            <p class="text-sm text-gray-700">Handpicked products just for you, based on your beauty vibe.</p>
+        </div>
+    </section>
+
+
+    <!-- Category Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            fetch('/api/categories/')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('category-list');
+                    const loadingText = document.getElementById('loading-text');
+                    if (loadingText) loadingText.remove();
+
+                    const categories = data.results || [];
+                    const parents = categories.filter(cat => cat.is_main_branch);
+
+                    if (parents.length === 0) {
+                        container.innerHTML = '<p class="text-gray-500 text-sm">No categories yet.</p>';
+                        return;
+                    }
+
+                    parents.forEach(parent => {
+                        const div = document.createElement('div');
+                        div.className = 'group relative border-b border-blush pb-2 mb-3';
+
+                        div.innerHTML = `
+                        <div class="cursor-pointer font-semibold text-darkRed hover:text-rose transition duration-300">
+                            ${parent.name}
+                        </div>
+                        ${parent.subcategories.length > 0 ? `
+                        <div class="hidden group-hover:block absolute left-full top-0 bg-white border border-blush text-darkRed p-2 z-10 shadow-xl rounded-lg animate-fadeIn min-w-[160px] whitespace-nowrap">
+                            ${parent.subcategories.map(sub => `
+                                <a href="/category/${sub.slug}/"
+                                    class="block text-sm px-3 py-1 hover:bg-blush rounded transition duration-200">
+                                    ${sub.name}
+                                </a>
+                            `).join('')}
+                        </div>` : ''}
+                    `;
+
+                        container.appendChild(div);
+                    });
+                })
+                .catch(err => {
+                    console.error("Failed to fetch categories:", err);
+                    const container = document.getElementById('category-list');
+                    container.innerHTML = '<p class="text-red-500 text-sm">Failed to load categories.</p>';
+                });
+        });
+    </script>
+
+    <!-- ✨ Custom Fade Animation -->
+    <style>
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+{% endblock %}

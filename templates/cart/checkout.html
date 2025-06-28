@@ -1,0 +1,155 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}Checkout | Maison Veloura{% endblock %}
+
+{% block content %}
+    <section class="px-6 py-10 bg-white min-h-screen font-roman">
+        <h1 class="text-4xl font-bold text-darkRed mb-10 text-center transition duration-300 ease-in-out hover:text-rose relative group">
+            Checkout Summary
+            <span class="block w-0 group-hover:w-full h-1 bg-rose transition-all duration-500 mx-auto mt-2 rounded-full"></span>
+        </h1>
+
+        <div id="checkout-container" class="max-w-3xl mx-auto space-y-6">
+            <div id="loading" class="text-center text-gray-500">Loading checkout summary...</div>
+        </div>
+
+        <!-- Discount Section -->
+        <div class="mt-12 max-w-xl mx-auto">
+            <label for="discount-code" class="block mb-2 text-darkRed font-semibold">Discount Code (Optional)</label>
+            <input type="text" id="discount-code"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose"
+                   placeholder="e.g., SPRING25">
+
+            <button id="apply-discount"
+                    class="mt-4 w-full bg-rose text-white font-semibold py-2 rounded-full shadow hover:bg-darkRed transition duration-300 ease-in-out">
+                Apply Discount
+            </button>
+
+            <button id="checkout-button"
+                    class="mt-4 w-full bg-darkRed text-white font-semibold py-3 rounded-full shadow hover:bg-rose transition duration-300 ease-in-out">
+                Confirm & Pay
+            </button>
+        </div>
+    </section>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const token = localStorage.getItem("access_token");
+            const container = document.getElementById("checkout-container");
+            const discountInput = document.getElementById("discount-code");
+            const applyBtn = document.getElementById("apply-discount");
+            const checkoutBtn = document.getElementById("checkout-button");
+
+            let checkoutData = null;
+
+            if (!token) {
+                container.innerHTML = "<p class='text-red-500 text-center'>You're not logged in.</p>";
+                return;
+            }
+
+            function renderCheckout(data) {
+                checkoutData = data;
+                const discountAmount = data.discount_amount ?? 0;  // fallback to 0
+                const shippingCost = data.shipping_cost ?? 0;
+                const totalPrice = data.total_price ?? 0;
+                const finalPrice = data.final_price ?? (totalPrice + shippingCost - discountAmount);
+
+                container.innerHTML = `
+        <div class="bg-light p-6 rounded-2xl shadow-md hover:shadow-xl transition duration-300 space-y-4">
+            <h2 class="text-xl font-bold text-darkRed">Your Information</h2>
+            <p><strong>Name:</strong> ${data.user.first_name} ${data.user.last_name}</p>
+            <p><strong>Phone:</strong> ${data.user.phone_number || '-'}</p>
+            <p><strong>Address:</strong> ${
+                    data.address
+                        ? (data.address.street || data.address.full || JSON.stringify(data.address))
+                        : '<span class="text-red-500">No address selected</span>'
+                }</p>
+
+            <h2 class="text-xl font-bold text-darkRed mt-6">Order Summary</h2>
+            <ul class="space-y-2">
+                ${data.items.map(item => `
+                    <li class="text-sm border p-2 rounded-xl">
+                        ${item.product_name} (${item.quantity} × $${item.price}) = $${item.total_price}
+                    </li>
+                `).join('')}
+            </ul>
+
+            <p class="mt-4"><strong>Total:</strong> $<span id="total-price">${totalPrice}</span></p>
+            <p><strong>Shipping:</strong> $<span id="shipping-cost">${shippingCost}</span></p>
+            <p><strong>Discount:</strong> $<span id="discount-amount">${discountAmount}</span></p>
+            <p class="text-lg font-bold text-green-600">Final Price: $<span id="final-price">${finalPrice}</span></p>
+        </div>
+    `;
+            }
+
+
+            function loadCheckout() {
+                fetch("/api/checkout/", {
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    }
+                })
+                    .then(res => res.json())
+                    .then(data => renderCheckout(data))
+                    .catch(err => {
+                        console.error(err);
+                        container.innerHTML = "<p class='text-red-500 text-center'>Error loading checkout summary.</p>";
+                    });
+            }
+
+            applyBtn.addEventListener("click", () => {
+                const discount = discountInput.value.trim();
+                if (!discount) return alert("Please enter a discount code.");
+
+                fetch("/api/checkout/", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({discount_code: discount})
+                })
+                    .then(res => {
+                        if (!res.ok) throw new Error("Invalid discount code.");
+                        return res.json();
+                    })
+                    .then(data => {
+                        document.getElementById("discount-amount").innerText = data.discount_amount;
+                        document.getElementById("final-price").innerText = data.final_price;
+                        document.getElementById("total-price").innerText = data.total_price;
+                        alert("Discount applied!");
+                    })
+                    .catch(err => {
+                        alert(err.message);
+                    });
+            });
+
+            checkoutBtn.addEventListener("click", () => {
+                fetch(`/api/receipt/${checkoutData.id}/`, {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({})
+                })
+
+                    .then(res => {
+                        if (!res.ok) throw new Error("Checkout failed");
+                        return res.json();
+                    })
+                    .then(data => {
+                        alert("Order confirmed! Thank you.");
+                        // Optionally redirect or refresh
+                    })
+                    .catch(err => {
+                        alert("Checkout failed: " + err.message);
+                    });
+            });
+
+
+            loadCheckout();
+        });
+    </script>
+{% endblock %}

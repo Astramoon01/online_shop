@@ -1,0 +1,112 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}{{ category_slug|title }} | Maison Veloura {% endblock %}
+
+{% block content %}
+    <section class="px-8 py-10 bg-white min-h-screen">
+        <h1 class="text-4xl font-bold text-darkRed mb-10 capitalize text-center
+           transition duration-300 ease-in-out hover:text-rose relative group">
+            {{ category_slug }}
+            <span class="block w-0 group-hover:w-full h-1 bg-rose transition-all duration-500 mx-auto mt-2 rounded-full"></span>
+        </h1>
+
+
+        <div id="product-grid" class="grid gap-10 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <div class="col-span-3 text-center text-gray-500" id="loading-text">Loading products...</div>
+        </div>
+    </section>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const categorySlug = "{{ category_slug }}";
+            const productGrid = document.getElementById("product-grid");
+            const loadingText = document.getElementById("loading-text");
+
+            fetchCategoryAndProducts(categorySlug);
+
+            function fetchCategoryAndProducts(slug) {
+                fetch(`/api/categories/slug/${slug}/`)
+                    .then(res => res.json())
+                    .then(categoryData => fetch(`/api/categories/${categoryData.id}/products/`))
+                    .then(res => res.json())
+                    .then(products => renderProducts(products))
+                    .catch(error => handleError(error));
+            }
+
+            function renderProducts(products) {
+                if (loadingText) loadingText.remove();
+
+                if (!products || products.length === 0) {
+                    productGrid.innerHTML = `
+                    <div class="col-span-3 text-center text-gray-500">
+                        No products available in this category.
+                    </div>`;
+                    return;
+                }
+
+                products.forEach(product => {
+                    const card = createProductCard(product);
+                    productGrid.appendChild(card);
+                });
+            }
+
+            function createProductCard(product) {
+                const card = document.createElement('a');
+                card.href = `/product/${product.slug}/`;
+                card.className = `
+                group block bg-light rounded-2xl overflow-hidden
+                shadow-md hover:shadow-2xl transition duration-300
+                border border-transparent hover:border-blush
+            `;
+
+                const imageSrc = product.image || "{% static 'img/default.jpg' %}";
+                const priceHTML = generatePriceHTML(product);
+
+                card.innerHTML = `
+                <div class="relative overflow-hidden">
+                    <img src="${imageSrc}" alt="${product.name}"
+                        class="w-full h-56 object-cover transform transition-transform duration-300 group-hover:scale-105" />
+                </div>
+
+                <div class="p-4 text-center">
+                    <h2 class="text-lg font-bold text-darkRed group-hover:text-rose transition duration-200">
+                        ${product.brand} - ${product.name}
+                    </h2>
+
+                    <div class="mt-2 mb-3 text-md">
+                        ${priceHTML}
+                    </div>
+
+                    <span class="inline-block text-sm font-medium text-rose bg-blush px-3 py-1 rounded-full shadow-sm">
+                        View Details
+                    </span>
+                </div>
+            `;
+
+                return card;
+            }
+
+            function generatePriceHTML(product) {
+                if (product.discount && product.discount.active) {
+                    return `
+                    <span class="text-gray-400 line-through mr-2">${product.price} $</span>
+                    <span class="text-rose font-bold">${product.final_price} $</span>
+                `;
+                } else {
+                    return `
+                    <span class="text-rose font-bold">${product.price} $</span>
+                `;
+                }
+            }
+
+            function handleError(error) {
+                console.error("Failed to load products:", error);
+                if (loadingText) {
+                    loadingText.textContent = "Failed to load products.";
+                    loadingText.classList.add("text-red-500");
+                }
+            }
+        });
+    </script>
+
+
+{% endblock %}

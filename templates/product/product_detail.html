@@ -1,0 +1,281 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}Product Details | Maison Veloura{% endblock %}
+
+{% block content %}
+    <section class="bg-white py-16 px-4 md:px-12">
+        <div id="product-detail" class="max-w-6xl mx-auto">
+            <div id="loading" class="text-center text-gray-500 text-lg">Loading product details...</div>
+        </div>
+    </section>
+
+    <!-- Inline CSS to remove number input arrows -->
+    <style>
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+
+    <script>
+        async function authFetch(url, options = {}) {
+            const access = localStorage.getItem('access_token');
+            const refresh = localStorage.getItem('refresh_token');
+
+            if (!options.headers) options.headers = {};
+            options.headers['Authorization'] = `Bearer ${access}`;
+            options.headers['Content-Type'] = 'application/json';
+
+            let response = await fetch(url, options);
+
+            if (response.status === 401 && refresh) {
+                const refreshResponse = await fetch("/api/token/refresh/", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({refresh})
+                });
+
+                if (refreshResponse.ok) {
+                    const data = await refreshResponse.json();
+                    localStorage.setItem("access_token", data.access);
+                    options.headers["Authorization"] = `Bearer ${data.access}`;
+                    response = await fetch(url, options);
+                } else {
+                    localStorage.clear();
+                    window.location.href = "/login/";
+                    return;
+                }
+            }
+
+            return response;
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const productSlug = window.location.pathname.split('/').filter(Boolean).pop();
+            const productDetail = document.getElementById("product-detail");
+            const loading = document.getElementById("loading");
+
+            authFetch(`/api/products/${productSlug}/`)
+                .then(res => res.json())
+                .then(product => {
+                    loading.remove();
+                    renderProduct(product);
+                })
+                .catch(error => {
+                    console.error("Failed to load product:", error);
+                    loading.textContent = "Failed to load product.";
+                    loading.classList.add("text-red-500");
+                });
+
+            fetch(`/api/products/${productSlug}/`)
+                .then(res => res.json())
+                .then(product => {
+                    loading.remove();
+                    renderProduct(product);
+                })
+                .catch(error => {
+                    console.error("Failed to load product:", error);
+                    loading.textContent = "Failed to load product.";
+                    loading.classList.add("text-red-500");
+                });
+
+            function renderProduct(product) {
+                const imageSrc = (product.images && product.images.length > 0)
+                    ? product.images[0].file
+                    : "{% static 'img/default.jpg' %}";
+
+                const priceHTML = product.discount && product.discount.active
+                    ? `
+                    <div class="text-2xl font-semibold text-darkRed hover:text-rose transition duration-300">Price</div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-gray-400 line-through text-lg">${product.price} $</span>
+                        <span class="text-rose text-3xl font-bold hover:text-darkRed transition duration-300">${product.final_price} $</span>
+                    </div>
+                `
+                    : `
+                    <div class="text-2xl font-semibold text-darkRed hover:text-rose transition duration-300">Price</div>
+                    <div class="text-3xl text-rose font-bold hover:text-darkRed transition duration-300">${product.price} $</div>
+                `;
+
+                const grouped = {};
+                product.features.forEach(f => {
+                    const name = f.feature_value.feature.name;
+                    if (!grouped[name]) grouped[name] = [];
+                    grouped[name].push(f.feature_value.value);
+                });
+
+                const featureHTML = Object.entries(grouped).map(([featureName, values]) => `
+                <div class="mt-6">
+                    <h4 class="text-md font-semibold text-darkRed hover:text-rose transition duration-300">${featureName}:</h4>
+                    <div class="flex flex-wrap gap-2 mt-2" data-feature="${featureName}">
+                        ${[...new Set(values)].map(val => `
+                            <button class="feature-btn border border-blush px-4 py-1.5 rounded-full text-sm hover:bg-blush hover:text-darkRed transition-all"
+                                    data-feature="${featureName}" data-value="${val}">
+                                ${val}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+                const colorButtonsHTML = product.colors.map(color => `
+                <button class="color-btn w-8 h-8 rounded-full border-2 border-gray-300 hover:ring-2 hover:ring-darkRed transition-all"
+                        style="background-color: ${color.hex_code};"
+                        title="${color.name}" data-color="${color.name}">
+                </button>
+            `).join('');
+
+                productDetail.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-14 items-start">
+                    <div class="overflow-hidden rounded-3xl shadow-xl border border-blush group">
+                        <img src="${imageSrc}" alt="${product.name}"
+                             class="w-full h-[34rem] object-cover transform transition duration-500 group-hover:scale-105" />
+                    </div>
+
+                    <div class="space-y-8">
+                        <div>
+                            <div class="text-sm uppercase tracking-wide text-gray-500 hover:text-darkRed transition duration-300">${product.brand}</div>
+                            <h1 class="text-4xl font-bold text-darkRed leading-tight hover:text-rose transition duration-300">${product.name}</h1>
+                        </div>
+
+                        <div class="text-gray-600 leading-relaxed text-base hover:text-black transition duration-300">
+                            ${product.description || "No description provided."}
+                        </div>
+
+                        <div>${priceHTML}</div>
+
+                        <div class="grid grid-cols-2 gap-4 text-sm text-gray-700">
+                            <div class="hover:text-darkRed transition duration-300">
+                                <span class="font-bold">Weight:</span> ${product.weight} g
+                            </div>
+                            <div class="hover:text-darkRed transition duration-300">
+                                <span class="font-bold">Category:</span> ${product.category}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-md font-semibold text-darkRed mb-2 hover:text-rose transition duration-300">Available Colors:</h4>
+                            <div id="color-options" class="flex gap-3 flex-wrap">
+                                ${colorButtonsHTML}
+                            </div>
+                        </div>
+
+                        ${featureHTML}
+
+                        <div class="mt-8 flex items-center gap-4">
+                            <div class="flex items-center border border-blush rounded-full px-3 py-1">
+                                <button id="decrease-qty" class="text-lg text-darkRed hover:text-rose font-bold px-2">−</button>
+                                <input id="quantity-input" type="number" value="1" min="1"
+                                       class="w-12 text-center border-0 outline-none bg-transparent text-darkRed font-medium" />
+                                <button id="increase-qty" class="text-lg text-darkRed hover:text-rose font-bold px-2">+</button>
+                            </div>
+                            <button id="add-to-cart-btn"
+                                    class="bg-darkRed hover:bg-rose text-white font-semibold px-6 py-2 rounded-full transition-all">
+                                Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+                // Quantity controls
+                document.getElementById('increase-qty').addEventListener('click', () => {
+                    const input = document.getElementById('quantity-input');
+                    input.value = parseInt(input.value) + 1;
+                });
+
+                document.getElementById('decrease-qty').addEventListener('click', () => {
+                    const input = document.getElementById('quantity-input');
+                    if (parseInt(input.value) > 1) {
+                        input.value = parseInt(input.value) - 1;
+                    }
+                });
+
+                // Color selection
+                document.querySelectorAll('.color-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('ring-2', 'ring-darkRed'));
+                        btn.classList.add('ring-2', 'ring-darkRed');
+                    });
+                });
+
+                // Feature selection (only one per group)
+                document.querySelectorAll('.feature-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const featureName = btn.getAttribute('data-feature');
+                        const allInGroup = document.querySelectorAll(`.feature-btn[data-feature="${featureName}"]`);
+                        allInGroup.forEach(b => b.classList.remove('bg-darkRed', 'text-white'));
+                        btn.classList.add('bg-darkRed', 'text-white');
+                    });
+                });
+
+                // Add to Cart
+                document.getElementById('add-to-cart-btn').addEventListener('click', () => {
+                    const selectedColorBtn = document.querySelector('.color-btn.ring-2');
+                    const quantity = parseInt(document.getElementById('quantity-input').value);
+
+                    if (!selectedColorBtn) {
+                        alert("Please select a color.");
+                        return;
+                    }
+
+                    const selectedFeatures = {};
+                    let allFeaturesSelected = true;
+
+                    const featureGroups = new Set();
+                    document.querySelectorAll('.feature-btn').forEach(btn => {
+                        featureGroups.add(btn.getAttribute('data-feature'));
+                    });
+
+                    featureGroups.forEach(featureName => {
+                        const selected = document.querySelector(`.feature-btn[data-feature="${featureName}"].bg-darkRed`);
+                        if (selected) {
+                            selectedFeatures[featureName] = selected.getAttribute('data-value');
+                        } else {
+                            allFeaturesSelected = false;
+                        }
+                    });
+                    if (!allFeaturesSelected) {
+                        alert("Please select all required features.");
+                        return;
+                    }
+
+
+                    const payload = {
+                        product_id: product.id,
+                        quantity: quantity,
+                        selected_color: selectedColorBtn.getAttribute('data-color'),
+                        selected_features: selectedFeatures
+                    };
+
+                    const token = localStorage.getItem("access_token");
+                    authFetch('/api/cart/', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    })
+                        .then(response => {
+                            if (response.ok) return response.json();
+                            return response.json().then(data => Promise.reject(data));
+                        })
+                        .then(data => {
+                            alert("Item added to cart!");
+                        })
+                        .catch(error => {
+                            console.error("Cart error:", error);
+                            alert("Failed to add to cart.");
+                        });
+                });
+            }
+        });
+
+    </script>
+{% endblock %}

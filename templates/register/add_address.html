@@ -1,0 +1,75 @@
+{% extends "base/base.html" %}
+{% load static %}
+{% block title %}Add Address | Maison Veloura{% endblock %}
+
+{% block content %}
+<section class="min-h-screen bg-light py-10 px-6">
+    <div class="max-w-xl mx-auto bg-white p-6 rounded-xl shadow">
+        <h2 class="text-2xl font-bold text-darkRed mb-6">Add New Address</h2>
+        <form id="address-form" class="space-y-4">
+            <input name="province" placeholder="Province" class="w-full border p-2 rounded" required>
+            <input name="city" placeholder="City" class="w-full border p-2 rounded" required>
+            <input name="street" placeholder="Street" class="w-full border p-2 rounded" required>
+            <input name="no" placeholder="No." class="w-full border p-2 rounded" required>
+            <input name="postal_code" placeholder="Postal Code (10 digits)" class="w-full border p-2 rounded" required>
+            <label class="inline-flex items-center">
+                <input type="checkbox" name="is_default" class="mr-2"> Set as default address
+            </label>
+            <button type="submit"
+                class="bg-darkRed hover:bg-rose text-white py-2 px-4 rounded-full w-full mt-4 transition">
+                Save Address
+            </button>
+        </form>
+        <div id="form-message" class="text-sm text-center mt-4 text-red-500"></div>
+    </div>
+</section>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("address-form");
+        const message = document.getElementById("form-message");
+        const token = localStorage.getItem("access_token");
+
+        if (!token) {
+            message.textContent = "You must be logged in to add an address.";
+            form.style.display = "none";
+            return;
+        }
+
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const data = {
+                province: formData.get("province"),
+                city: formData.get("city"),
+                street: formData.get("street"),
+                no: formData.get("no"),
+                postal_code: formData.get("postal_code"),
+                is_default: formData.get("is_default") === "on"
+            };
+
+            fetch("/api/addresses/", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(data)
+            })
+            .then(res => {
+                if (res.ok) {
+                    window.location.href = "/confirm-info/";
+                } else {
+                    return res.json().then(err => {
+                        message.textContent = Object.values(err).flat().join(" ");
+                    });
+                }
+            })
+            .catch(() => {
+                message.textContent = "Something went wrong. Please try again.";
+            });
+        });
+    });
+</script>
+{% endblock %}
